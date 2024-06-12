@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link href='https://fonts.googleapis.com/css?family=Comfortaa' rel='stylesheet'>
+	<link rel="stylesheet" type="text/css" href='css/notmain.css'>
+	<meta charset="utf-8">
+	<title></title>
+</head>
+<body>
+	<div class="lenta">
+		<a href="main.html" class="blob gp">GP</a>
+		<div class="block">
+			<h1>Тег <span class="tag">&ltselect&gt</span></h1>
+			<div class="block">
+				<h3>Описание</h3>
+				<p>Тег <span class="tag">&ltselect&gt</span> позволяет создать элемент интерфейса в виде раскрывающегося списка, а также список с одним или множественным выбором, как показано далее. Конечный вид зависит от использования атрибута size тега <span class="tag">&ltselect&gt</span>, который устанавливает высоту списка. Ширина списка определяется самым широким текстом, указанным в теге <span class="tag">&ltoption&gt</span>, а также может изменяться с помощью стилей. Каждый пункт создается с помощью тега <span class="tag">&ltoption&gt</span>, который должен быть вложен в контейнер <span class="tag">&ltselect&gt</span>.<em> Если планируется отправлять данные списка на сервер, то требуется поместить элемент <span class="tag">&ltselect&gt</span> внутрь формы.</em> Это также необходимо, когда к данным списка идет обращение через скрипты.</p>
+				<h3>Синтаксис</h3>
+				<div class="code">
+					<pre><span class="tag">&ltselect&gt</span>
+  <span class="tag">&ltoption&gt</span>Пункт 1<span class="tag">&lt/option&gt</span>
+  <span class="tag">&ltoption&gt</span>Пункт 2<span class="tag">&lt/option&gt</span>
+<span class="tag">&lt/select&gt</span></pre>
+				</div>
+				<h3>Атрибуты</h3>
+				<div class=attributes>
+					<dl class="param">
+						<dt><span class="attribute">accesskey</span></dt><dd>Позволяет перейти к списку с помощью некоторого сочетания клавиш.</dd>
+<dt><span class="attribute">autofocus</span></dt><dd>Устанавливает, что список получает фокус после загрузки страницы.</dd>
+<dt><span class="attribute">disabled</span></dt><dd>Блокирует доступ и изменение элемента.</dd>
+<dt><span class="attribute">form</span></dt><dd>Связывает список с формой.</dd>
+<dt><span class="attribute">multiple</span></dt><dd>Позволяет одновременно выбирать сразу несколько элементов списка.</dd>
+<dt><span class="attribute">name</span></dt><dd>Имя элемента для отправки на сервер или обращения через скрипты.</dd>
+<dt><span class="attribute">required</span></dt><dd>Список обязателен для выбора перед отправкой формы.</dd>
+<dt><span class="attribute">size</span></dt><dd>Количество отображаемых строк списка.</dd>
+<dt><span class="attribute">tabindex</span></dt><dd>Определяет последовательность перехода между элементами при нажатии на клавишу Tab</dd>
+					</dl>
+				</div>
+				<h3>Пример</h3>
+				<div class="code">
+					<pre><span class="tag">&ltform <span class="attribute">action</span>=<span class="value">"select1.php"</span> <span class="attribute">method</span>=<span class="value">"post"</span>&gt</span>
+ <span class="tag">&ltp&gt</span><span class="tag">&ltselect <span class="attribute">size</span>=<span class="value">"3"</span><span class="attribute">multiple name</span>=<span class="value">"hero[]"</span>&gt</span>
+  <span class="tag">&ltoption <span class="attribute">disabled</span>&gt</span>Выберите героя<span class="tag">&lt/option&gt</span>
+  <span class="tag">&ltoption <span class="attribute">value</span>=<span class="value">"Чебурашка"</span>&gt</span>Чебурашка<span class="tag">&lt/option&gt</span>
+  <span class="tag">&ltoption <span class="attribute">selected value</span>=<span class="value">"Крокодил Гена"</span>&gt</span>Крокодил Гена<span class="tag">&lt/option&gt</span>
+  <span class="tag">&ltoption <span class="attribute">value</span>=<span class="value">"Шапокляк"</span>&gt</span>Шапокляк<span class="tag">&lt/option&gt</span>
+  <span class="tag">&ltoption <span class="attribute">value</span>=<span class="value">"Крыса Лариса"</span>&gt</span>Крыса Лариса<span class="tag">&lt/option&gt</span>
+ <span class="tag">&lt/select&gt</span><span class="tag">&lt/p&gt</span>
+ <span class="tag">&ltp&gt</span><span class="tag">&ltinput <span class="attribute">type</span>=<span class="value">"submit"</span><span class="attribute">value</span>=<span class="value">"Отправить"</span>&gt</span><span class="tag">&lt/p&gt</span>
+<span class="tag">&lt/form&gt</span></pre>
+					</div>
+					<h3>Результат</h3>
+					<div class="result">
+						<form action="select1.php" method="post">
+ <p><select size="3"multiple name="hero[]">
+  <option disabled>Выберите героя</option>
+  <option value="Чебурашка">Чебурашка</option>
+  <option selected value="Крокодил Гена">Крокодил Гена</option>
+  <option value="Шапокляк">Шапокляк</option>
+  <option value="Крыса Лариса">Крыса Лариса</option>
+ </select></p>
+ <p></p>
+</form>
+<input type="submit"value="Отправить">
+					</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link href='https://fonts.googleapis.com/css?family=Comfortaa' rel='stylesheet'>
+	<link rel="stylesheet" type="text/css" href='css/notmain.css'>
+	<meta charset="utf-8">
+	<title></title>
+</head>
+<body>
+	<div class="lenta">
+		<a href="main.html" class="blob gp">GP</a>
+		<div class="block">
+			<h1>Тег <span class="tag">&ltbr&gt</span></h1>
+			<div class="block">
+				<h3>Описание</h3>
+				<p>Тег <span class="tag">&ltbr&gt</span> устанавливает перевод строки в том месте, где этот тег находится.<em> В отличие от тега абзаца <span class="tag">&ltp&gt</span>, использование тега <span class="tag">&ltbr&gt</span> не добавляет пустой отступ перед строкой.</em> Если текст, в котором используется перевод строки, обтекает плавающий элемент, то с помощью атрибута clear тега <span class="tag">&ltbr&gt</span> можно сделать так, чтобы следующая строка начиналась ниже элемента.</p>
+				<h3>Синтаксис</h3>
+				<div class="code">
+					<pre>
+Текст<span class="tag">&ltbr&gt</span> текст</pre>
+				</div>
+				<h3>Атрибуты</h3>
+				<div class=attributes>
+					<dl><dt class="dtd"><span class="attribute">clear</span></dt><dd class="dtd">Сообщает браузеру, как обрабатывать следующую строку, если текст обтекает плавающий элемент.</dd></dl>
+				</div>
+				<h3>Пример</h3>
+				<div class="code">
+					<pre>
+<span class="tag">&ltp&gt</span>Р.Л. Стивенсон<span class="tag">&lt/p&gt</span>
+<span class="tag">&ltp&gt</span>Лето в стране настало,<span class="tag">&ltbr&gt</span>
+Вереск опять цветет.<span class="tag">&ltbr&gt</span>
+Но некому готовить<span class="tag">&ltbr&gt</span>
+Вересковый мед.<span class="tag">&lt/p&gt</span></pre>
+				</div>
+				<h3>Результат</h3>
+				<div class="result">
+<p>Р.Л. Стивенсон</p>
+<p>Лето в стране настало,<br>
+Вереск опять цветет.<br>
+Но некому готовить<br>
+Вересковый мед.</p></div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
