@@ -9,7 +9,10 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}"
+            "program": "chat",
+            //"showLog":true,
+            //"dlvFlags": ["--log-output=dap,gdbwire,lldbout,debuglineerr,rpc,fncall,stack"],
+            //"trace":"trace",
         }
     ]
 }
