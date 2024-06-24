@@ -1,4 +1,5 @@
 window.onload = function () {
+
     var conn;
     var msg = document.getElementById("msg");
     var log = document.getElementById("log");
@@ -22,9 +23,8 @@ window.onload = function () {
         msg.value = "";
         return false;
     };
-
     if (window["WebSocket"]) {
-        conn = new WebSocket("ws://" + document.location.host + "/ws");
+        conn = new WebSocket("ws://" + document.location.host + "/ws/bababoi");
         conn.onclose = function (evt) {
             var item = document.createElement("div");
             item.innerHTML = "<b>Connection closed.</b>";

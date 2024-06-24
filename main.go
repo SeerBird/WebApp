@@ -1,27 +1,43 @@
+// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
-	"github.com/gin-gonic/gin"
+	"WebApp/back"
+	"flag"
+	"log"
 	"net/http"
 )
 
+var addr = flag.String("addr", ":8080", "http service address")
+
+func serveHome(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.URL)
+	if r.URL.Path != "/" {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	http.ServeFile(w, r, "front/home.html")
+}
 
 func main() {
-	var router = gin.Default()
-
-	router.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Hello, You created a Web App!"})
+	flag.Parse() //I don't think this does anything?
+	//give access to front files
+	http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir("front"))))
+	http.HandleFunc("/", serveHome)
+	//define multiplayer connection behaviour
+	http.HandleFunc("/ws/{gamename}", func(w http.ResponseWriter, r *http.Request) {
+		back.ServeWs(w, r, r.PathValue("gamename"))
 	})
-	router.Static("/static", "./static")
-
-	router.GET("/hello/:name", func(c *gin.Context) {
-		name := c.Param("name")
-		c.JSON(http.StatusOK, gin.H{"message": "Hello, " + name + "!"})
-	})
-	// Define a route to render an HTML template
-	router.GET("/profile/:username", func(c *gin.Context) {
-		username := c.Param("username")
-		c.HTML(http.StatusOK, "profile.html", gin.H{"username": username})
-	})
-	router.Run(":8080")
+	//run while you still can
+	err := http.ListenAndServe(*addr, nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
