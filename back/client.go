@@ -53,7 +53,7 @@ type Client struct {
 // reads from this goroutine.
 func (c *Client) readPump(game *Game) {
 	defer func() {
-		(*game).RemovePlayer(*c)
+		(*game).RemovePlayer(c)
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -71,6 +71,7 @@ func (c *Client) readPump(game *Game) {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		(*game).playerInput(message, c)
 	}
 }
 
@@ -128,12 +129,12 @@ func ServeWs(w http.ResponseWriter, r *http.Request, gamename string) {
 		log.Println(err)
 		return
 	}
-	game:=connectToGame(gamename)
+	game := connectToGame(gamename)
 	client := &Client{conn: conn, send: make(chan []byte, 256)}
-	(*game).AddPlayer()
+	game.AddPlayer(client)
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
-	go client.readPump(game)
+	go client.readPump(&game)
 }

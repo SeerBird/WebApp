@@ -5,7 +5,7 @@
 package back
 
 var managers map[string]AnyLobbyManager = map[string]AnyLobbyManager{
-	"bababoi": *new(LobbyManager[WordGame]),
+	"bababoi": LobbyManager[*WordGame]{games: make(map[*WordGame]bool)},
 }
 
 func ManageGames() {
@@ -14,7 +14,7 @@ func ManageGames() {
 	}
 }
 
-func connectToGame(gamename string, args ...any) *Game {
+func connectToGame(gamename string, args ...any) Game {
 	manager := managers[gamename]
 	if manager == nil {
 		//scream
@@ -25,12 +25,16 @@ func connectToGame(gamename string, args ...any) *Game {
 
 type AnyLobbyManager interface {
 	start()
-	connect(args ...any) *Game
+	connect(args ...any) Game
 }
-type LobbyManager[T Game] struct {
-	games    map[*T]bool
-	initiate chan *T
-	stop     chan *T
+type constraint interface {
+	Game
+	comparable
+}
+type LobbyManager[T constraint] struct {
+	games    map[T]bool
+	initiate chan T
+	stop     chan T
 }
 
 func (m LobbyManager[T]) start() {
@@ -45,11 +49,9 @@ func (m LobbyManager[T]) start() {
 		}
 	}
 }
-func (m LobbyManager[T]) connect(args ...any) *Game {
-	game := new(T)
-	(*game).init()
-	m.games[game] = true
-	res:=(Game)(*game)
+func (m LobbyManager[T]) connect(args ...any) Game {
+	game := (*new(T)).init()
+	m.games[game.(T)] = true
 	return game
 }
 
