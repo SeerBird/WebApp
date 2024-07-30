@@ -6,6 +6,7 @@ package back
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -43,17 +44,20 @@ type Client struct {
 	conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	send chan []byte
+	sendChannel chan ServerMessage
 }
-
+type ServerMessage struct{
+	Msg any
+	Tag string
+}
 // readPump pumps messages from the websocket connection to the hub.
 //
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Client) readPump(game *Game) {
+func (c *Client) readPump(game Game) {
 	defer func() {
-		(*game).RemovePlayer(c)
+		game.removePlayer(c)
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -63,15 +67,20 @@ func (c *Client) readPump(game *Game) {
 		return nil
 	})
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, packet, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
 			break
 		}
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		(*game).playerInput(message, c)
+		packet = bytes.TrimSpace(bytes.Replace(packet, newline, space, -1))
+		var message map[string]interface{}
+		err = json.Unmarshal(packet, &message)
+		if err != nil {
+			panic(err)
+		}
+		game.receivePacket(message, c)
 	}
 }
 
@@ -88,7 +97,7 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.send:
+		case message, ok := <-c.sendChannel:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// The hub closed the channel.
@@ -100,13 +109,19 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			packet, err := json.Marshal(message)
+			//handle pls
+			w.Write(packet)
 
 			// Add queued chat messages to the current websocket message.
-			n := len(c.send)
+			n := len(c.sendChannel)
 			for i := 0; i < n; i++ {
-				w.Write(newline)
-				w.Write(<-c.send)
+				w, err := c.conn.NextWriter(websocket.TextMessage)
+				if err != nil {
+					return
+				}
+				packet, err = json.Marshal(<-c.sendChannel)
+				w.Write(packet)
 			}
 
 			if err := w.Close(); err != nil {
@@ -120,6 +135,29 @@ func (c *Client) writePump() {
 		}
 	}
 }
+func (c *Client) send(msg any, tag string) {
+	c.sendChannel<-ServerMessage{Msg:msg,Tag:tag}
+}
+func decode[T any](by []byte) T {
+	m := *new(T)
+	b := bytes.Buffer{}
+	b.Write(by)
+	d := json.NewDecoder(&b)
+	err := d.Decode(&m)
+	if err != nil {
+		log.Println(`failed json Decode`, err)
+	}
+	return m
+}
+func encode[T any](in T) []byte {
+	b := bytes.Buffer{}
+	e := json.NewEncoder(&b)
+	err := e.Encode(in)
+	if err != nil {
+		log.Println(`failed json Encode`, err)
+	}
+	return []byte(b.String())
+}
 
 // serveWs handles websocket requests from the peer.
 func ServeWs(w http.ResponseWriter, r *http.Request, gamename string) {
@@ -129,12 +167,5 @@ func ServeWs(w http.ResponseWriter, r *http.Request, gamename string) {
 		log.Println(err)
 		return
 	}
-	game := connectToGame(gamename)
-	client := &Client{conn: conn, send: make(chan []byte, 256)}
-	game.AddPlayer(client)
-
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
-	go client.writePump()
-	go client.readPump(&game)
+	connectToGame(gamename, &Client{conn: conn, sendChannel: make(chan ServerMessage)}, "")
 }

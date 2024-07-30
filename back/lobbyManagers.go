@@ -5,7 +5,8 @@
 package back
 
 var managers map[string]AnyLobbyManager = map[string]AnyLobbyManager{
-	"bababoi": LobbyManager[*WordGame]{games: make(map[*WordGame]bool)},
+	"bababoi": &LobbyManager[*TTTGame, TTTGame]{games: make(map[*TTTGame]bool),
+		stop: make(chan *TTTGame), join: make(chan JoinData)},
 }
 
 func ManageGames() {
@@ -14,68 +15,63 @@ func ManageGames() {
 	}
 }
 
-func connectToGame(gamename string, args ...any) Game {
+func connectToGame(gamename string, client *Client, args string) {
 	manager := managers[gamename]
 	if manager == nil {
-		//scream
-		return nil
+		//scream. handle pls.
+		return
 	}
-	return manager.connect(args)
+	manager.connect(client, args)
 }
 
 type AnyLobbyManager interface {
 	start()
-	connect(args ...any) Game
+	connect(client *Client, args string)
 }
-type constraint interface {
+
+type ComparableGame[T any] interface {
+	*T
 	Game
 	comparable
 }
-type LobbyManager[T constraint] struct {
-	games    map[T]bool
-	initiate chan T
-	stop     chan T
+type LobbyManager[T ComparableGame[U], U any] struct {
+	games map[T]bool
+	stop  chan T
+	join  chan JoinData
 }
 
-func (m LobbyManager[T]) start() {
+func (m *LobbyManager[T, U]) start() {
 	for {
+	out:
 		select {
-		case game := <-m.initiate:
-			m.games[game] = true
 		case game := <-m.stop:
-			if _, ok := m.games[game]; ok {
-				delete(m.games, game)
+			delete(m.games, game)
+		case data := <-m.join:
+			for game := range m.games {
+				if game.joinable(data.args) {
+					game.addPlayer(data.client)
+					break out
+				}
 			}
+			//TODO: make sure game is joinable for data.args or handle otherwise
+			game:=m.newGame()
+			go game.gameloop()
+			m.games[game] = true
+			game.addPlayer(data.client)
 		}
 	}
 }
-func (m LobbyManager[T]) connect(args ...any) Game {
-	game := (*new(T)).init()
-	m.games[game.(T)] = true
-	return game
+func (m *LobbyManager[T, U]) newGame() T{
+	var game U
+	res:=(T(&game)).init(m)
+	return (res).(T)
 }
 
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients.
-type Hub struct {
-	// Registered clients.
-	clients map[*Client]bool
-
-	// Inbound messages from the clients.
-	broadcast chan []byte
-
-	// Register requests from the clients.
-	register chan *Client
-
-	// Unregister requests from clients.
-	unregister chan *Client
+type JoinData struct {
+	client *Client
+	args   string
 }
 
-func newHub() *Hub {
-	return &Hub{
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
-	}
+func (m *LobbyManager[T, U]) connect(client *Client, args string) {
+	m.join <- JoinData{client: client, args: args}
 }

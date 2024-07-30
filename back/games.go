@@ -1,73 +1,161 @@
 package back
 
-type Game interface { //idk...
-	init() Game
-	Gameloop()
-	AddPlayer(*Client)
-	RemovePlayer(*Client)
-	playerInput([]byte, *Client)
+import (
+	"log"
+)
+
+type Game interface {
+	init(AnyLobbyManager) Game
+	gameloop()
+	addPlayer(*Client) //never called concurrently
+	removePlayer(*Client)
+	receivePacket(map[string]interface{}, *Client)
+	joinable(string) bool
+}
+type ClientPacket struct {
+	msg    map[string]interface{}
+	client *Client
 }
 
-// #region WordGame
+// #region TTTGame
 
-type WordGame struct {
-	players map[*Client]WordGamePlayer
+type TTTGame struct {
+	players map[*Client]*TTTGamePlayer
 
-	broadcast chan []byte
+	inPacketChannel chan *ClientPacket
 
-	// Register requests from the clients.
-	register chan *Client
-
+	grid        *[3][3]int
+	currentRole int //1 for cross, 0 for circle
 	// Unregister requests from clients.
 	unregister chan *Client
+	manager    AnyLobbyManager
+}
+type TTTGamePlayer struct {
+	client *Client
+	score  int
+	role   int //1 for cross, 0 for circle
 }
 
-func (b *WordGame) init() Game {
-	instance := *new(WordGame)
-	instance.players = make(map[*Client]WordGamePlayer)
-	instance.broadcast = make(chan []byte)
-	instance.register = make(chan *Client)
+func (b *TTTGame) init(m AnyLobbyManager) Game {
+	instance := *b
+	instance.players = make(map[*Client]*TTTGamePlayer)
+	instance.inPacketChannel = make(chan *ClientPacket)
 	instance.unregister = make(chan *Client)
-	go instance.Gameloop()
+	instance.manager = m
+	instance.resetGrid()
 	return &instance
 }
+func (b *TTTGame) resetGrid() {
+	b.grid = &[3][3]int{{-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}}
+}
+func (b *TTTGame) checkWin(role int) bool {
+	win := true
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			win = win && (b.grid[i][j] == role)
+		}
+		if win {
+			return true
+		}
+		win = true
+	}
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			win = win && (b.grid[j][i] == role)
+		}
+		if win {
+			return true
+		}
+		win = true
+	}
 
-type WordGamePlayer struct {
-	client *Client
-	ok     bool
+	for i := 0; i < 3; i++ {
+		win = (b.grid[i][i] == role) && win
+	}
+	if win {
+		return true
+	}
+	win = true
+	for i := 0; i < 3; i++ {
+		win = (b.grid[i][2-i] == role) && win
+	}
+	if win {
+		return true
+	}
+	end:=true
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			end = end && (b.grid[i][j] !=-1)
+		}
+	}
+	return end
 }
 
-func (b *WordGame) Gameloop() {
+func (b *TTTGame) gameloop() {
 	for {
 		select {
-		case client := <-b.register:
-			b.players[client] = WordGamePlayer{client: client, ok: true}
-		case client := <-b.unregister:
-			if _, ok := b.players[client]; ok {
-				delete(b.players, client)
-				close(client.send)
+		case conn := <-b.unregister:
+			if _, ok := b.players[conn]; ok {
+				delete(b.players, conn)
+				close(conn.sendChannel)
 			}
-		case message := <-b.broadcast:
-			for client := range b.players {
-				select {
-				case client.send <- message:
+		case packet := <-b.inPacketChannel:
+			msg := packet.msg
+			if msgType, ok := msg["type"]; ok {
+				switch msgType {
+				case "input":
+					b.handleInput(packet)
 				default:
-					close(client.send)
-					delete(b.players, client)
+					log.Output(0, "Unexpected message type received")
 				}
+			} else {
+				log.Output(0, "Wrong message format received")
 			}
 		}
 	}
 }
+func (b *TTTGame) handleInput(packet *ClientPacket) {
+	msg := packet.msg["value"].(map[string]interface{})
+	if b.currentRole != b.players[packet.client].role {
+		//wrong turn
+		return
+	}
+	i := int(msg["i"].(float64))
+	j := int(msg["j"].(float64))
+	if b.grid[i][j] != -1 {
+		//bad input
+		return
+	}
+	b.grid[i][j] = b.players[packet.client].role
+	for client, _ := range b.players {
+		client.send(*b.grid, "update")
+	}
+	if b.checkWin(b.currentRole) {
+		b.resetGrid()
+		for client, _ := range b.players {
+			client.send(*b.grid, "update")
+		}
+	}
+	if b.currentRole == 0 {
+		b.currentRole = 1
+	} else {
+		b.currentRole = 0
+	}
+}
 
-func (b *WordGame) playerInput(msg []byte, c *Client) {
-	b.broadcast <- msg
+func (b *TTTGame) receivePacket(message map[string]interface{}, c *Client) {
+	b.inPacketChannel <- &ClientPacket{msg: message, client: c}
 }
-func (b *WordGame) AddPlayer(c *Client) {
-	b.register <- c
+func (b *TTTGame) addPlayer(client *Client) {
+	b.players[client] = &TTTGamePlayer{client: client, role: len(b.players), score: 0}
+	go client.readPump(b)
+	go client.writePump()
 }
-func (b *WordGame) RemovePlayer(c *Client) {
-	b.unregister <- c
+func (b *TTTGame) removePlayer(client *Client) {
+	b.unregister <- client
+}
+func (b *TTTGame) joinable(args string) bool {
+	return len(b.players) < 2
 }
 
 //#endregion

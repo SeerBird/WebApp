@@ -35,7 +35,10 @@ func main() {
 	http.HandleFunc("/ws/{gamename}", func(w http.ResponseWriter, r *http.Request) {
 		back.ServeWs(w, r, r.PathValue("gamename"))
 	})
+	//manage all the game lobbies
+	back.ManageGames()
 	//run while you still can
+	//err := http.ListenAndServeTLS(*addr, "weird/domain.crt", "weird/rootCA.key", nil)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
