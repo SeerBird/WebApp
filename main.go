@@ -1,7 +1,10 @@
+// I used the WebSocket example files for this, but I think this code is now mine? not sure.
+// To feel a bit better I'm leaving this in the file:
+//#region Copyright of examples used for this tiny inconsequential project
 // Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
+//#endregion
 package main
 
 import (
@@ -39,6 +42,7 @@ func main() {
 	back.ManageGames()
 	//run while you still can
 	//err := http.ListenAndServeTLS(*addr, "weird/domain.crt", "weird/rootCA.key", nil)
+	//never messing with certification again /hj. hell.
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)

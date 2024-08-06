@@ -1,7 +1,3 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package back
 
 import (
@@ -38,7 +34,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-// Client is a middleman between the websocket connection and the hub.
+// Client is a middleman between the websocket connection and the game.
 type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
@@ -50,11 +46,13 @@ type ServerMessage struct{
 	Msg any
 	Tag string
 }
-// readPump pumps messages from the websocket connection to the hub.
+// readPump pumps messages from the websocket connection to the game.
 //
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
+// There is a bunch of code that I don't think I care about here, but it's all good-practise handling so if I use this later
+// I should at least read the error handling code from the example. Therefore, it stays.
 func (c *Client) readPump(game Game) {
 	defer func() {
 		game.removePlayer(c)
@@ -110,7 +108,7 @@ func (c *Client) writePump() {
 				return
 			}
 			packet, err := json.Marshal(message)
-			//handle pls
+			//handle err?
 			w.Write(packet)
 
 			// Add queued chat messages to the current websocket message.
@@ -121,6 +119,7 @@ func (c *Client) writePump() {
 					return
 				}
 				packet, err = json.Marshal(<-c.sendChannel)
+				//handle err?
 				w.Write(packet)
 			}
 
@@ -138,30 +137,10 @@ func (c *Client) writePump() {
 func (c *Client) send(msg any, tag string) {
 	c.sendChannel<-ServerMessage{Msg:msg,Tag:tag}
 }
-func decode[T any](by []byte) T {
-	m := *new(T)
-	b := bytes.Buffer{}
-	b.Write(by)
-	d := json.NewDecoder(&b)
-	err := d.Decode(&m)
-	if err != nil {
-		log.Println(`failed json Decode`, err)
-	}
-	return m
-}
-func encode[T any](in T) []byte {
-	b := bytes.Buffer{}
-	e := json.NewEncoder(&b)
-	err := e.Encode(in)
-	if err != nil {
-		log.Println(`failed json Encode`, err)
-	}
-	return []byte(b.String())
-}
 
 // serveWs handles websocket requests from the peer.
 func ServeWs(w http.ResponseWriter, r *http.Request, gamename string) {
-	//use parameters in the request to determine what kind of game this starts/connects the user to
+	// use parameters in the request to determine what kind of game this starts/connects the user to
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)

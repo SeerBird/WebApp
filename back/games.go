@@ -2,6 +2,8 @@ package back
 
 import (
 	"log"
+	"math"
+	"math/rand"
 )
 
 type Game interface {
@@ -25,7 +27,7 @@ type TTTGame struct {
 	inPacketChannel chan *ClientPacket
 
 	grid        *[3][3]int
-	currentRole int //1 for cross, 0 for circle
+	currentRole int //0 for cross, 1 for circle
 	// Unregister requests from clients.
 	unregister chan *Client
 	register   chan *Client
@@ -34,7 +36,7 @@ type TTTGame struct {
 type TTTGamePlayer struct {
 	client *Client
 	score  int
-	role   int //1 for cross, 0 for circle
+	role   int //0 for cross, 1 for circle
 }
 
 func (b *TTTGame) init(m AnyLobbyManager) Game {
@@ -62,23 +64,31 @@ func (b *TTTGame) handleInput(packet *ClientPacket) {
 		return
 	}
 	b.grid[i][j] = b.players[packet.client].role
-	for client, _ := range b.players {
+	for client := range b.players {
 		client.send(*b.grid, "update")
 	}
 	if b.checkWin(b.currentRole) {
 		b.resetGrid()
-		for client, _ := range b.players {
+		for client := range b.players {
 			client.send(*b.grid, "update")
 		}
+		if rand.Float64() > 0.5 {
+			for _, player := range b.players {
+				player.role = oppositeRole(player.role)
+			}
+		}
+		b.currentRole=1 //swapped later back to 0, so next game starts with cross
 	}
-	if b.currentRole == 0 {
-		b.currentRole = 1
-	} else {
-		b.currentRole = 0
-	}
+	b.currentRole = oppositeRole(b.currentRole)
 }
 func (b *TTTGame) resetGrid() {
 	b.grid = &[3][3]int{{-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}}
+}
+func oppositeRole(role int) int {
+	if role == 0 {
+		return 1 //circle
+	}
+	return 0 //cross
 }
 func (b *TTTGame) checkWin(role int) bool {
 	win := true
@@ -128,7 +138,11 @@ func (b *TTTGame) gameloop() {
 	for {
 		select {
 		case client := <-b.register:
-			b.players[client] = &TTTGamePlayer{client: client, role: len(b.players), score: 0}
+			role:=int(math.Floor(rand.Float64()+0.5))
+			for _,player:=range b.players { //is there a cleaner way to do this? readability seems to have died
+				role=oppositeRole(player.role)
+			}
+			b.players[client] = &TTTGamePlayer{client: client, role: role, score: 0}
 			go client.readPump(b)
 			go client.writePump()
 			client.send(*b.grid, "update")
@@ -137,7 +151,7 @@ func (b *TTTGame) gameloop() {
 				delete(b.players, client)
 				close(client.sendChannel)
 				b.resetGrid()
-				for client, _ := range b.players {
+				for client := range b.players {
 					client.send(*b.grid, "update")
 				}
 			}
