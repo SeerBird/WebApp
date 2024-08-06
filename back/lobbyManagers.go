@@ -5,7 +5,7 @@
 package back
 
 var managers map[string]AnyLobbyManager = map[string]AnyLobbyManager{
-	"bababoi": &LobbyManager[*TTTGame, TTTGame]{games: make(map[*TTTGame]bool),
+	"tictactoe": &LobbyManager[*TTTGame, TTTGame]{games: make(map[*TTTGame]bool),
 		stop: make(chan *TTTGame), join: make(chan JoinData)},
 }
 

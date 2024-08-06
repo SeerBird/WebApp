@@ -28,6 +28,7 @@ type TTTGame struct {
 	currentRole int //1 for cross, 0 for circle
 	// Unregister requests from clients.
 	unregister chan *Client
+	register   chan *Client
 	manager    AnyLobbyManager
 }
 type TTTGamePlayer struct {
@@ -41,9 +42,40 @@ func (b *TTTGame) init(m AnyLobbyManager) Game {
 	instance.players = make(map[*Client]*TTTGamePlayer)
 	instance.inPacketChannel = make(chan *ClientPacket)
 	instance.unregister = make(chan *Client)
+	instance.register = make(chan *Client)
 	instance.manager = m
 	instance.resetGrid()
 	return &instance
+}
+
+// #region gameplay
+func (b *TTTGame) handleInput(packet *ClientPacket) {
+	msg := packet.msg["value"].(map[string]interface{})
+	if b.currentRole != b.players[packet.client].role {
+		//wrong turn
+		return
+	}
+	i := int(msg["i"].(float64))
+	j := int(msg["j"].(float64))
+	if b.grid[i][j] != -1 {
+		//bad input
+		return
+	}
+	b.grid[i][j] = b.players[packet.client].role
+	for client, _ := range b.players {
+		client.send(*b.grid, "update")
+	}
+	if b.checkWin(b.currentRole) {
+		b.resetGrid()
+		for client, _ := range b.players {
+			client.send(*b.grid, "update")
+		}
+	}
+	if b.currentRole == 0 {
+		b.currentRole = 1
+	} else {
+		b.currentRole = 0
+	}
 }
 func (b *TTTGame) resetGrid() {
 	b.grid = &[3][3]int{{-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}}
@@ -82,22 +114,32 @@ func (b *TTTGame) checkWin(role int) bool {
 	if win {
 		return true
 	}
-	end:=true
+	end := true
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
-			end = end && (b.grid[i][j] !=-1)
+			end = end && (b.grid[i][j] != -1)
 		}
 	}
 	return end
 }
 
+// #endregion
 func (b *TTTGame) gameloop() {
 	for {
 		select {
-		case conn := <-b.unregister:
-			if _, ok := b.players[conn]; ok {
-				delete(b.players, conn)
-				close(conn.sendChannel)
+		case client := <-b.register:
+			b.players[client] = &TTTGamePlayer{client: client, role: len(b.players), score: 0}
+			go client.readPump(b)
+			go client.writePump()
+			client.send(*b.grid, "update")
+		case client := <-b.unregister:
+			if _, ok := b.players[client]; ok {
+				delete(b.players, client)
+				close(client.sendChannel)
+				b.resetGrid()
+				for client, _ := range b.players {
+					client.send(*b.grid, "update")
+				}
 			}
 		case packet := <-b.inPacketChannel:
 			msg := packet.msg
@@ -114,42 +156,12 @@ func (b *TTTGame) gameloop() {
 		}
 	}
 }
-func (b *TTTGame) handleInput(packet *ClientPacket) {
-	msg := packet.msg["value"].(map[string]interface{})
-	if b.currentRole != b.players[packet.client].role {
-		//wrong turn
-		return
-	}
-	i := int(msg["i"].(float64))
-	j := int(msg["j"].(float64))
-	if b.grid[i][j] != -1 {
-		//bad input
-		return
-	}
-	b.grid[i][j] = b.players[packet.client].role
-	for client, _ := range b.players {
-		client.send(*b.grid, "update")
-	}
-	if b.checkWin(b.currentRole) {
-		b.resetGrid()
-		for client, _ := range b.players {
-			client.send(*b.grid, "update")
-		}
-	}
-	if b.currentRole == 0 {
-		b.currentRole = 1
-	} else {
-		b.currentRole = 0
-	}
-}
 
 func (b *TTTGame) receivePacket(message map[string]interface{}, c *Client) {
 	b.inPacketChannel <- &ClientPacket{msg: message, client: c}
 }
 func (b *TTTGame) addPlayer(client *Client) {
-	b.players[client] = &TTTGamePlayer{client: client, role: len(b.players), score: 0}
-	go client.readPump(b)
-	go client.writePump()
+	b.register <- client
 }
 func (b *TTTGame) removePlayer(client *Client) {
 	b.unregister <- client

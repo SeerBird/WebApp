@@ -49,7 +49,7 @@ window.onload = function () {
     }
     */
     if (window["WebSocket"]) {
-        conn = new WebSocket("ws://" + document.location.host + "/ws/bababoi");
+        conn = new WebSocket("ws://" + document.location.host + "/ws/tictactoe");
         conn.onclose = function (evt) {
 
         };
