@@ -1,7 +1,7 @@
 window.onload = function () {
     var conn;
     if (window["WebSocket"]) {
-        conn = new WebSocket("ws://" + document.location.host + "/ws/tictactoe");
+        conn = new WebSocket("ws://" + document.location.host + "/ws/TicTacToe");
         conn.onclose = function (evt) {
         };
         conn.onmessage = function (evt) {
@@ -91,4 +91,4 @@ window.onload = function () {
     ctx.fillStyle = "rgb(0 255 0)";
     ctx.fillRect(0, 0, width, height);
 };
-//# sourceMappingURL=main.js.map
+//# sourceMappingURL=game.js.map

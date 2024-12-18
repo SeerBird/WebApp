@@ -2,7 +2,7 @@ window.onload = function () {
 
     var conn: WebSocket;
     if (window["WebSocket"]) {
-        conn = new WebSocket("ws://" + document.location.host + "/ws/tictactoe");
+        conn = new WebSocket("ws://" + document.location.host + "/ws/TicTacToe");
         conn.onclose = function (evt) {
 
         };

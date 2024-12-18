@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"time"
-
 	"github.com/gorilla/websocket"
 )
 
@@ -42,10 +41,11 @@ type Client struct {
 	// Buffered channel of outbound messages.
 	sendChannel chan ServerMessage
 }
-type ServerMessage struct{
+type ServerMessage struct {
 	Msg any
 	Tag string
 }
+
 // readPump pumps messages from the websocket connection to the game.
 //
 // The application runs readPump in a per-connection goroutine. The application
@@ -107,7 +107,7 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
-			packet, err := json.Marshal(message)
+			packet, _ := json.Marshal(message)
 			//handle err?
 			w.Write(packet)
 
@@ -118,7 +118,7 @@ func (c *Client) writePump() {
 				if err != nil {
 					return
 				}
-				packet, err = json.Marshal(<-c.sendChannel)
+				packet, _ = json.Marshal(<-c.sendChannel)
 				//handle err?
 				w.Write(packet)
 			}
@@ -135,7 +135,7 @@ func (c *Client) writePump() {
 	}
 }
 func (c *Client) send(msg any, tag string) {
-	c.sendChannel<-ServerMessage{Msg:msg,Tag:tag}
+	c.sendChannel <- ServerMessage{Msg: msg, Tag: tag}
 }
 
 // serveWs handles websocket requests from the peer.
