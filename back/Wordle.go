@@ -100,11 +100,7 @@ func (b *Wordle) init(m AnyLobbyManager) Game {
 	inst.register = make(chan *Client)
 	inst.manager = m
 	inst.turn = -1
-	for i := 0; i < size; i++ {
-		for j := 0; j < size; j++ {
-			inst.grid[i][j] = "?"
-		}
-	}
+	inst.emptyGrid()
 	return &inst
 }
 
@@ -113,6 +109,7 @@ func (b *Wordle) gameloop() {
 	for {
 		select {
 		case client := <-b.register:
+			//region find unclaimed order id
 			flag := true
 			i := 0
 			for ;flag;i++ {
@@ -127,6 +124,7 @@ func (b *Wordle) gameloop() {
 			if i>playercount-1{
 				panic("player reg went wrong")
 			}
+			//endregion
 			b.players[client] = &WordlePlayer{client: client, score: 0, order: i}
 			go client.readPump(b)
 			go client.writePump()
@@ -161,6 +159,8 @@ func (b *Wordle) gameloop() {
 			if _, ok := b.players[client]; ok {
 				delete(b.players, client)
 				close(client.sendChannel)
+				b.turn=-1
+				b.emptyGrid()
 				for client := range b.players {
 					client.send(b.getServerPacket(b.players[client]), "update")
 				}
@@ -177,6 +177,13 @@ func (b *Wordle) gameloop() {
 			} else {
 				log.Output(0, "Wrong message format received")
 			}
+		}
+	}
+}
+func (b *Wordle) emptyGrid(){
+	for i := 0; i < size; i++ {
+		for j := 0; j < size; j++ {
+			b.grid[i][j] = "?"
 		}
 	}
 }
