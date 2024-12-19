@@ -97,10 +97,10 @@ func (b *Wordle) init(m AnyLobbyManager) Game {
 	inst.unregister = make(chan *Client)
 	inst.register = make(chan *Client)
 	inst.manager = m
-	inst.turn = 0
+	inst.turn = -1
 	for i := 0; i < size; i++ {
 		for j := 0; j < size; j++ {
-			inst.grid[i][j] = ""
+			inst.grid[i][j] = "?"
 		}
 	}
 	return &inst
@@ -111,12 +111,27 @@ func (b *Wordle) gameloop() {
 	for {
 		select {
 		case client := <-b.register:
-			b.players[client] = &WordlePlayer{client: client, score: 0, order: len(b.players)}
+			flag := true
+			i := 0
+			for ;flag;i++ {
+				flag=false
+				for _, player := range b.players {
+					if i == player.order {
+						flag=true
+					}
+				}
+			}
+			i--
+			if i>playercount-1{
+				panic("player reg went wrong")
+			}
+			b.players[client] = &WordlePlayer{client: client, score: 0, order: i}
 			go client.readPump(b)
 			go client.writePump()
 			if len(b.players) == playercount {
 				//region start game
 				b.regenerate()
+				b.turn = 0
 				//region swap teams half the time
 				if rand.Float64() > 0.5 {
 					for _, player := range b.players {
@@ -179,9 +194,9 @@ func newGrid() [size][size]string {
 				rand -= letterFreq[letter]
 				if rand <= 0 {
 					grid[i][j] = letter
+					break
 				}
 			}
-
 		}
 	}
 	return grid
@@ -199,8 +214,9 @@ func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic h
 	//endregion
 	//region get the word the player made
 	var letterCoords []coord
-	for _, letter := range packet.msg["value"].([]map[string]int) {
-		thisCoord := coord{i: letter["i"], j: letter["j"]}
+	for _, uncastLetter := range packet.msg["value"].([]any) {
+		letter := uncastLetter.(map[string]any)
+		thisCoord := coord{i: int(letter["i"].(float64)), j: int(letter["j"].(float64))}
 		letterCoords = append(letterCoords, thisCoord)
 		//region validate
 		if thisCoord.i < 0 || thisCoord.i > size-1 || thisCoord.j < 0 || thisCoord.j > size-1 {
@@ -221,7 +237,7 @@ func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic h
 		word += b.grid[coord.i][coord.j]
 	}
 	//endregion
-	if checkWord(word) {
+	if checkWord(word)||true {
 		//region give the points
 		var points int = 0
 		for _, letter := range letterCoords {
@@ -231,7 +247,7 @@ func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic h
 			}
 			points += add
 		}
-		if slices.Contains[[]coord, coord](letterCoords, b.doubleW) {
+		if slices.Contains(letterCoords, b.doubleW) {
 			points *= 2
 		}
 		player.score += points
@@ -285,27 +301,27 @@ type coord struct {
 // region ServerPacket
 func (b *Wordle) getServerPacket(recipient *WordlePlayer) ServerPacket { //grid, turn, playerList, index of player this is sent to(determined later)
 	var packet ServerPacket = ServerPacket{
-		grid:        b.grid,
-		turn:        b.turn,
-		playerList:  make(map[int]playerData),
-		clientOrder: recipient.order,
+		Grid:        b.grid,
+		Turn:        b.turn,
+		PlayerList:  make(map[int]playerData),
+		ClientOrder: recipient.order,
 	}
 	for client := range b.players {
 		player := b.players[client]
-		packet.playerList[player.order] = playerData{name: client.conn.LocalAddr().String(), score: player.score}
+		packet.PlayerList[player.order] = playerData{Name: client.conn.LocalAddr().String(), Score: player.score}
 	}
 	return packet
 }
 
 type ServerPacket struct {
-	grid        [size][size]string
-	turn        int
-	clientOrder int
-	playerList  map[int]playerData
+	Grid        [size][size]string
+	Turn        int
+	ClientOrder int
+	PlayerList  map[int]playerData
 }
 type playerData struct {
-	name  string
-	score int
+	Name  string
+	Score int
 }
 
 // endregion

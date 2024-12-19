@@ -1,26 +1,19 @@
 var size = 5;
 window.onload = function () {
-    var conn;
-    if (window["WebSocket"]) {
-        conn = new WebSocket("ws://" + document.location.host + "/ws/TicTacToe");
-        conn.onclose = function (evt) {
-        };
-        conn.onmessage = function (evt) {
-            var messages = evt.data.split('\n');
-            for (var m = 0; m < messages.length; m++) {
-                var data = JSON.parse(messages[m]);
-                switch (data.Tag) {
-                    case "update": // grid, turn, playerList(ordered (name,score))
-                        grid = null;
-                }
-            }
-            redraw();
-        };
+    //region init game model
+    var grid = [];
+    for (var i = 0; i < size; i++) {
+        grid[i] = [];
+        for (var j = 0; j < size; j++) {
+            grid[i][j] = "";
+        }
     }
-    else {
-        //scream
-        return;
-    }
+    var myTurn = false;
+    var word = [];
+    var mousepos = { i: -1, j: -1 };
+    var playerList = [];
+    //endregion
+    //region init canvas and size constants
     var canvas = document.querySelector(".myCanvas");
     if (canvas == null) {
         return;
@@ -31,22 +24,15 @@ window.onload = function () {
     var width = (canvas.width = window.innerWidth);
     var height = (canvas.height = window.innerHeight);
     var side = Math.min(width, height) / size;
-    var ox = width / 2 - side * (size / 2) - side / 2;
-    var oy = height / 2 - side * (size / 2) - side / 2;
+    var ox = width / 2 - side * (size / 2);
+    var oy = height / 2 - side * (size / 2);
     var ctx = canvas.getContext("2d");
+    var font = side * 2 / 3;
     if (ctx == null) {
         return;
         //handle pls?
     }
-    var grid = [];
-    for (var i = 0; i < size; i++) {
-        grid[i] = [];
-        for (var j = 0; j < size; j++) {
-            grid[i][j] = "";
-        }
-    }
-    var myTurn = false;
-    var word = [];
+    //endregion
     function onClick(e) {
         //region do nothing if it's not my turn
         if (!myTurn) {
@@ -74,13 +60,18 @@ window.onload = function () {
         //endregion
         //region end word
         else {
-            conn.send(JSON.stringify(word)); //validate this on server
+            conn.send(JSON.stringify({ "type": "input", "value": word })); //validate this on server
             word = [];
             myTurn = false; //maybe wait for update from server anyways?
         }
         //endregion
+        redraw();
     }
     function onMove(e) {
+        redraw();
+        ctx.strokeStyle = "green";
+        drawCircle(ctx, e.x, e.y, 5);
+        mousepos = { i: e.x, j: e.y };
         //region validate input
         if (!(this instanceof HTMLCanvasElement)) {
             return;
@@ -90,19 +81,27 @@ window.onload = function () {
         }
         var i = Math.floor((e.x - ox) / side);
         var j = Math.floor((e.y - oy) / side);
+        console.log(" ");
+        console.log(i + ", " + j);
         if (i < 0 || i > size - 1 || j < 0 || j > size - 1) {
+            console.log("outside");
             return; //can this even happen? we're outside the grid. whatever.
         }
         var lastLetter = word[word.length - 1];
         if (i == lastLetter.i && j == lastLetter.j) { // we're in the last letter
+            console.log("in the last letter");
             return;
         }
         if (Math.abs(i - lastLetter.i) > 1 || Math.abs(j - lastLetter.j) > 1) {
+            console.log("not in a square neighbouring the previous letter");
             return; // we're not in a square neighbouring the previous letter
         }
         var centerx = ox + i * side + side / 2;
-        var centery = oy + i * side + side / 2;
+        var centery = oy + j * side + side / 2;
+        ctx.strokeStyle = "red";
+        drawCircle(ctx, centerx, centery, 10);
         if (Math.abs(e.x - centerx) + Math.abs(e.y - centery) > side / 2) {
+            console.log("Not in the diamond");
             return; // only trigger in the diamond
         }
         //endregion
@@ -110,12 +109,18 @@ window.onload = function () {
         if (word.length > 1) { // we can erase tha last letter
             if (i == word[word.length - 2].i && j == word[word.length - 2].j) {
                 // we're in the diamond of the letter before last
+                console.log("erasing");
                 word.pop();
                 return;
             }
         }
+        for (var m = 0; m < word.length; m++) {
+            if (i == word[m].i && j == word[m].j) {
+                return; //this coordletter is already in the word
+            }
+        }
         word[word.length] = { i: i, j: j }; // append hovered letter
-        //endregion
+        //endregion        
     }
     function redraw() {
         //region grid
@@ -123,20 +128,79 @@ window.onload = function () {
         ctx.fillRect(0, 0, width, height);
         ctx.strokeStyle = "black";
         for (var i = 0; i < size + 1; i++) {
-            drawLine(ctx, ox + i * side, 0, ox + i * side, height);
+            drawLine(ctx, ox + i * side, oy, ox + i * side, oy + size * side);
         }
         for (var i = 0; i < size + 1; i++) {
-            drawLine(ctx, 0, oy + side * i, width, oy + side * i);
+            drawLine(ctx, ox, oy + side * i, ox + size * side, oy + side * i);
         }
         //endregion
         //region letters
-        for (var i = 0; i < size + 1; i++) {
+        ctx.fillStyle = "red";
+        ctx.font = "bold " + font + "px serif";
+        for (var i = 0; i < size; i++) {
             for (var j = 0; j < size; j++) {
-                ctx.fillText(grid[i][j], ox + side * i, oy + side * j);
+                var letter = grid[i][j];
+                var dims = ctx.measureText(letter);
+                ctx.fillText(grid[i][j], ox + side * i + side / 2 - dims.width / 2, oy + side * j + side / 2 + font / 3);
             }
         }
         //endregion
+        //region selection
+        if (word.length > 0) {
+            //region start letter circle
+            ctx.beginPath();
+            var lastx = ox + side * word[0].i + side / 2;
+            var lasty = oy + side * word[0].j + side / 2;
+            ctx.arc(lastx, lasty, side / 2, 0, 6.3);
+            ctx.strokeStyle = "yellow";
+            ctx.stroke();
+            //endregion
+            //region fixed word path
+            var nextx;
+            var nexty;
+            for (var i = 1; i < word.length; i++) {
+                nextx = ox + side * word[i].i + side / 2;
+                nexty = oy + side * word[i].j + side / 2;
+                drawLine(ctx, lastx, lasty, nextx, nexty);
+                lastx = nextx;
+                lasty = nexty;
+            }
+            //endregion
+            //region hanging word path link
+            drawLine(ctx, lastx, lasty, mousepos.i, mousepos.j);
+            //endregion
+        }
+        //endregion
+        //region debug
+        ctx.fillText(String(myTurn), 100, 100);
+        //endregion
     }
+    //region connection
+    var conn;
+    if (window["WebSocket"]) {
+        conn = new WebSocket("ws://" + document.location.host + "/ws/Wordle");
+        conn.onclose = function (evt) {
+        };
+        conn.onmessage = function (evt) {
+            var messages = evt.data.split('\n');
+            for (var m = 0; m < messages.length; m++) {
+                var data = JSON.parse(messages[m]);
+                switch (data.Tag) {
+                    case "update": // grid, turn, playerList(ordered (name,score))
+                        var msg = data.Msg;
+                        grid = msg.Grid;
+                        myTurn = msg.ClientOrder == msg.Turn;
+                        playerList = msg.PlayerList;
+                }
+            }
+            redraw();
+        };
+    }
+    else {
+        //scream
+        return;
+    }
+    //endregion
     ctx.fillStyle = "rgb(0 255 0)";
     ctx.fillRect(0, 0, width, height);
 };
@@ -144,6 +208,11 @@ function drawLine(ctx, x0, y0, x1, y1) {
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
+    ctx.stroke();
+}
+function drawCircle(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, 6.3);
     ctx.stroke();
 }
 //# sourceMappingURL=game.js.map
