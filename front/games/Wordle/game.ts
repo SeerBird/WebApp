@@ -35,7 +35,7 @@ window.onload = function () {
     const height = (canvas.height = window.innerHeight);
     const side = Math.min(width, height) / size
     const ox = width / 2 - side * (size / 2) - side / 2
-    const oy = height / 2 - side * (size / 2) - side / 2
+    const oy = height / 2 - side * (size / 2)
     const ctx = canvas.getContext("2d");
     if (ctx == null) {
         return
