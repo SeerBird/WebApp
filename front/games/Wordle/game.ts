@@ -33,47 +33,65 @@ window.onload = function () {
         //handle pls?
     }
     //endregion
-
+    //region init scoreboard
+    const scoreboard = document.getElementById("scoreboard");
+    function addSBItem(text:string,active:boolean){
+        var entry = document.createElement('li');
+        entry.appendChild(document.createTextNode(text));
+        if(active){
+            entry.style.color="green"
+        }
+        scoreboard.appendChild(entry);
+    }
+    function clearSB(){
+        scoreboard.innerHTML=""
+    }
+    //endregion
+    //region input
     function onClick(this, e: MouseEvent) {
         //region do nothing if it's not my turn
         if (!myTurn) {
             return
         }
         //endregion
-        //region clear word selection if click is outside the canvas or RMB
-        if (e.button == 2) {
-            word = []
-            return
-        }
+        //region clear word selection if click is outside the canvas
         if (!(this instanceof HTMLCanvasElement)) {
             word = []
             return
         }
+        const i = Math.floor((e.x - ox) / side)
+        const j = Math.floor((e.y - oy) / side)
+        if (i < 0 || i > size - 1 || j < 0 || j > size - 1) {
+            word = []
+            return //can this even happen? we're outside the grid. whatever.
+        }
         //endregion
         //region start word
         if (word.length == 0) {
-            const i = Math.floor((e.x - ox) / side)
-            const j = Math.floor((e.y - oy) / side)
-            if (i > -1 && i < size && j > -1 && j < size) {
-                word[0] = { i: i, j: j }
-            }
+            word[0] = { i: i, j: j }
+        }
+        //endregion
+        //region clear word selection and return if selection is one letter
+        else if ((word.length == 1)){
+            word = []
         }
         //endregion
         //region end word
         else {
             conn.send(JSON.stringify({ "type": "input", "value": word})) //validate this on server
             word = []
-            myTurn = false //maybe wait for update from server anyways?
         }
         //endregion
         redraw()
     }
     function onMove(this, e: MouseEvent) {
+        //region redraw
         redraw()
         ctx.strokeStyle="green"
-        drawCircle(ctx, e.x, e.y, 5)
-        mousepos = {i:e.x,j:e.y}
+        drawCircle(e.x, e.y, 5)
+        //endregion
         //region validate input
+        mousepos = { i: e.x, j: e.y }
         if (!(this instanceof HTMLCanvasElement)) {
             return
         }
@@ -100,7 +118,7 @@ window.onload = function () {
         const centerx = ox + i * side + side / 2
         const centery = oy + j * side + side / 2
         ctx.strokeStyle="red"
-        drawCircle(ctx, centerx, centery, 10)
+        drawCircle(centerx, centery, 10)
         if (Math.abs(e.x - centerx) + Math.abs(e.y - centery) > side / 2) {
             console.log("Not in the diamond")
             return // only trigger in the diamond
@@ -123,16 +141,18 @@ window.onload = function () {
         word[word.length] = { i: i, j: j } // append hovered letter
         //endregion        
     }
+    //endregion
+    //region drawing
     function redraw() {
         //region grid
         ctx.fillStyle = "white"
         ctx.fillRect(0, 0, width, height);
         ctx.strokeStyle = "black"
         for (var i = 0; i < size + 1; i++) {
-            drawLine(ctx, ox + i * side, oy, ox + i * side, oy + size * side);
+            drawLine(ox + i * side, oy, ox + i * side, oy + size * side);
         }
         for (var i = 0; i < size + 1; i++) {
-            drawLine(ctx, ox, oy + side * i, ox + size * side, oy + side * i);
+            drawLine(ox, oy + side * i, ox + size * side, oy + side * i);
         }
         //endregion
         //region letters
@@ -153,7 +173,7 @@ window.onload = function () {
             var lastx = ox + side * word[0].i + side / 2
             var lasty = oy + side * word[0].j + side / 2
             ctx.arc(lastx, lasty, side / 2, 0, 6.3)
-            ctx.strokeStyle="yellow"
+            ctx.strokeStyle="green"
             ctx.stroke()
             //endregion
             //region fixed word path
@@ -162,21 +182,32 @@ window.onload = function () {
             for(var i = 1;i<word.length;i++){
                 nextx = ox + side * word[i].i + side / 2
                 nexty = oy + side * word[i].j + side / 2
-                drawLine(ctx, lastx,lasty,nextx,nexty)
+                drawLine(lastx,lasty,nextx,nexty)
                 lastx=nextx
                 lasty=nexty
             }
             //endregion
             //region hanging word path link
-            drawLine(ctx, lastx, lasty, mousepos.i, mousepos.j)
+            drawLine(lastx, lasty, mousepos.i, mousepos.j)
             //endregion
         }
         //endregion
         //region debug
-        ctx.fillText(String(myTurn), 100,100)
+        //ctx.fillText(String(myTurn), 100,100)
         //endregion
     }
-
+    function drawLine(x0: number, y0: number, x1: number, y1: number) {
+        ctx.beginPath()
+        ctx.moveTo(x0, y0)
+        ctx.lineTo(x1, y1)
+        ctx.stroke()
+    }
+    function drawCircle(x: number, y: number, r: number) {
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, 6.3)
+        ctx.stroke()
+    }
+    //endregion
     //region connection
     var conn: WebSocket;
     if (window["WebSocket"]) {
@@ -194,6 +225,14 @@ window.onload = function () {
                         grid = msg.Grid;
                         myTurn = msg.ClientOrder == msg.Turn;
                         playerList = msg.PlayerList;
+                        clearSB()
+                        for(let i=0;i<playerList.length;i++){
+                            var name = playerList[i].Name
+                            if (playerList[i].Name == String(msg.ClientOrder)){
+                                name="You"
+                            }
+                            addSBItem(name + ": " + playerList[i].Score, i == msg.Turn)
+                        }
                 }
             }
             redraw()
@@ -206,17 +245,7 @@ window.onload = function () {
     ctx.fillStyle = "rgb(0 255 0)";
     ctx.fillRect(0, 0, width, height);
 };
-function drawLine(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {
-    ctx.beginPath()
-    ctx.moveTo(x0, y0)
-    ctx.lineTo(x1, y1)
-    ctx.stroke()
-}
-function drawCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, 6.3)
-    ctx.stroke()
-}
+
 interface coordinate {
     i: number;
     j: number;

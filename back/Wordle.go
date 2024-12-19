@@ -1,14 +1,16 @@
 package back
 
+import "fmt"
+
 import (
 	"log"
 	"math"
 	"math/rand"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
+	"os"
+	"path/filepath"
 )
 
 const size int = 5
@@ -237,7 +239,7 @@ func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic h
 		word += b.grid[coord.i][coord.j]
 	}
 	//endregion
-	if checkWord(word)||true {
+	if checkWord(word){
 		//region give the points
 		var points int = 0
 		for _, letter := range letterCoords {
@@ -279,14 +281,16 @@ func checkWord(word string) bool {
 	if err != nil {
 		panic(err)
 	}
-	cmd := exec.Command("python", filepath.Dir(path)+"\\resources\\Wordle\\checkWord.py", word)
+	cmd := exec.Command("python", filepath.Dir(path)+"\\back\\resources\\Wordle\\checkWord.py", word)
 	var out strings.Builder
 	cmd.Stdout = &out
 	err = cmd.Run()
 	if err != nil {
 		log.Output(0, err.Error())
 	}
-	return out.String() == "True"
+	output:=out.String()
+	log.Output(0,output)
+	return out.String() == "True\r\n"
 }
 func randCoord() int {
 	return int(rand.Float64() * float64(size))
@@ -303,12 +307,11 @@ func (b *Wordle) getServerPacket(recipient *WordlePlayer) ServerPacket { //grid,
 	var packet ServerPacket = ServerPacket{
 		Grid:        b.grid,
 		Turn:        b.turn,
-		PlayerList:  make(map[int]playerData),
 		ClientOrder: recipient.order,
 	}
 	for client := range b.players {
 		player := b.players[client]
-		packet.PlayerList[player.order] = playerData{Name: client.conn.LocalAddr().String(), Score: player.score}
+		packet.PlayerList[player.order] = playerData{Name: fmt.Sprint(player.order), Score: player.score}
 	}
 	return packet
 }
@@ -317,7 +320,7 @@ type ServerPacket struct {
 	Grid        [size][size]string
 	Turn        int
 	ClientOrder int
-	PlayerList  map[int]playerData
+	PlayerList  [playercount]playerData
 }
 type playerData struct {
 	Name  string
