@@ -4,44 +4,80 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
 )
 
 const size int = 5
+const playercount int = 4
 
+var letterFreq map[string]float64 = map[string]float64{
+	"A": 8.2,
+	"B": 1.5,
+	"C": 2.8,
+	"D": 4.3,
+	"E": 12.7,
+	"F": 2.2,
+	"G": 2.0,
+	"H": 6.1,
+	"I": 7.0,
+	"J": 0.15,
+	"K": 0.77,
+	"L": 4.0,
+	"M": 2.4,
+	"N": 6.7,
+	"O": 7.5,
+	"P": 1.9,
+	"Q": 0.095,
+	"R": 6.0,
+	"S": 6.3,
+	"T": 9.1,
+	"U": 2.8,
+	"V": 0.98,
+	"W": 2.4,
+	"X": 0.15,
+	"Y": 2.0,
+	"Z": 0.074,
+}
 var alphabetValues map[string]int = map[string]int{
 	"A": 1,
-	"B": 1,
-	"C": 1,
-	"D": 1,
+	"B": 4,
+	"C": 5,
+	"D": 3,
 	"E": 1,
-	"F": 1,
-	"G": 1,
-	"H": 1,
+	"F": 5,
+	"G": 3,
+	"H": 4,
 	"I": 1,
-	"J": 1,
-	"K": 1,
-	"L": 1,
-	"M": 1,
-	"N": 1,
+	"J": 7,
+	"K": 6,
+	"L": 3,
+	"M": 4,
+	"N": 2,
 	"O": 1,
-	"P": 1,
-	"Q": 1,
-	"R": 1,
-	"S": 1,
-	"T": 1,
-	"U": 1,
-	"V": 1,
-	"W": 1,
-	"X": 1,
-	"Y": 1,
-	"Z": 1,
+	"P": 4,
+	"Q": 8,
+	"R": 2,
+	"S": 2,
+	"T": 2,
+	"U": 4,
+	"V": 5,
+	"W": 5,
+	"X": 7,
+	"Y": 4,
+	"Z": 8,
 }
 
 type Wordle struct {
 	players map[*Client]*WordlePlayer
 
-	grid [size][size]string
-	turn int
+	grid    [size][size]string
+	turn    int
+	doubleW coord
+	doubleL coord
 
 	inPacketChannel chan *ClientPacket
 	unregister      chan *Client
@@ -61,6 +97,7 @@ func (b *Wordle) init(m AnyLobbyManager) Game {
 	inst.unregister = make(chan *Client)
 	inst.register = make(chan *Client)
 	inst.manager = m
+	inst.turn = 0
 	for i := 0; i < size; i++ {
 		for j := 0; j < size; j++ {
 			inst.grid[i][j] = ""
@@ -77,12 +114,29 @@ func (b *Wordle) gameloop() {
 			b.players[client] = &WordlePlayer{client: client, score: 0, order: len(b.players)}
 			go client.readPump(b)
 			go client.writePump()
-			if len(b.players) == 4 {
-				b.grid = newGrid()
-				b.turn = 0
+			if len(b.players) == playercount {
+				//region start game
+				b.regenerate()
+				//region swap teams half the time
+				if rand.Float64() > 0.5 {
+					for _, player := range b.players {
+						switch player.order {
+						case 0:
+							player.order = 2
+						case 1:
+							player.order = 3
+						case 2:
+							player.order = 0
+						case 3:
+							player.order = 1
+						}
+					}
+				}
+				//endregion
 				for anyClient := range b.players {
 					anyClient.send(b.getServerPacket(b.players[anyClient]), "update")
 				}
+				//endregion
 			} else {
 				client.send(b.getServerPacket(b.players[client]), "update")
 			}
@@ -111,18 +165,29 @@ func (b *Wordle) gameloop() {
 }
 func newGrid() [size][size]string {
 	var grid [size][size]string
+	var sum float64 = 0
+	var alphabet []string
+	for letter := range alphabetValues {
+		sum += letterFreq[letter]
+		alphabet = append(alphabet, letter)
+	}
 	for i := 0; i < size; i++ {
 		for j := 0; j < size; j++ {
-			var alphabet []string
-			for letter := range alphabetValues {
-				alphabet = append(alphabet, letter)
+			rand := rand.Float64() * sum
+			grid[i][j] = "?"
+			for _, letter := range alphabet {
+				rand -= letterFreq[letter]
+				if rand <= 0 {
+					grid[i][j] = letter
+				}
 			}
-			grid[i][j] = alphabet[int(math.Floor(rand.Float64()*float64(len(alphabet))))]
+
 		}
 	}
 	return grid
 }
 func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic happens
+	//region get and validate the player
 	player := b.players[packet.client]
 	if player.order != b.turn {
 		return
@@ -131,10 +196,10 @@ func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic h
 		log.Output(0, "Unknown ClientPacket type: "+(packet.msg["type"]).(string))
 		return
 	}
-	msg := packet.msg["value"].([]map[string]int)
+	//endregion
 	//region get the word the player made
 	var letterCoords []coord
-	for _, letter := range msg {
+	for _, letter := range packet.msg["value"].([]map[string]int) {
 		thisCoord := coord{i: letter["i"], j: letter["j"]}
 		letterCoords = append(letterCoords, thisCoord)
 		//region validate
@@ -156,7 +221,59 @@ func (b *Wordle) handleInput(packet *ClientPacket) { //this is where the magic h
 		word += b.grid[coord.i][coord.j]
 	}
 	//endregion
-	
+	if checkWord(word) {
+		//region give the points
+		var points int = 0
+		for _, letter := range letterCoords {
+			add := alphabetValues[b.grid[letter.i][letter.j]]
+			if letter == b.doubleL {
+				add *= 2
+			}
+			points += add
+		}
+		if slices.Contains[[]coord, coord](letterCoords, b.doubleW) {
+			points *= 2
+		}
+		player.score += points
+		//endregion
+		//region replace the letters
+		newGrid := newGrid()
+		for _, coord := range letterCoords {
+			b.grid[coord.i][coord.j] = newGrid[coord.i][coord.j]
+		}
+		//endregion
+		//region increment turn and restart the round if it's over
+		b.turn = (b.turn + 1) % playercount
+		if b.turn == 0 {
+			b.regenerate()
+		}
+		//endregion
+		for client := range b.players {
+			client.send(b.getServerPacket(b.players[client]), "update")
+		}
+	}
+}
+func (b *Wordle) regenerate() {
+	b.grid = newGrid()
+	b.doubleL = coord{i: randCoord(), j: randCoord()}
+	b.doubleW = coord{i: randCoord(), j: randCoord()}
+}
+func checkWord(word string) bool {
+	path, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	cmd := exec.Command("python", filepath.Dir(path)+"\\resources\\Wordle\\checkWord.py", word)
+	var out strings.Builder
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err != nil {
+		log.Output(0, err.Error())
+	}
+	return out.String() == "True"
+}
+func randCoord() int {
+	return int(rand.Float64() * float64(size))
 }
 
 type coord struct {

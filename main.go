@@ -12,8 +12,6 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"os/exec"
-	"strings"
 )
 
 var addr = flag.String("addr", ":8080", "http service address")
@@ -22,14 +20,6 @@ var addr = flag.String("addr", ":8080", "http service address")
 
 
 func main() {
-	cmd:=exec.Command("python /back/resources/Wordle/checkWord.py","mama")
-	var out strings.Builder
-	cmd.Stdout = &out
-	errr := cmd.Run()
-	if errr != nil {
-		log.Fatal(errr)
-	}
-	log.Output(0, out.String())
 	flag.Parse() //I don't think this does anything?
 	//region serve home
 	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {

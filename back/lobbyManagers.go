@@ -1,7 +1,10 @@
 package back
+
 var managers map[string]AnyLobbyManager = map[string]AnyLobbyManager{
 	"TicTacToe": &LobbyManager[*TTTGame, TTTGame]{games: make(map[*TTTGame]bool),
 		stop: make(chan *TTTGame), join: make(chan JoinData)},
+	"Wordle": &LobbyManager[*Wordle, Wordle]{games: make(map[*Wordle]bool),
+		stop: make(chan *Wordle), join: make(chan JoinData)},
 }
 
 func ManageGames() {
@@ -49,16 +52,16 @@ func (m *LobbyManager[T, U]) start() {
 				}
 			}
 			//TODO: make sure game is joinable for data.args or handle otherwise
-			game:=m.newGame()
+			game := m.newGame()
 			go game.gameloop()
 			m.games[game] = true
 			game.addPlayer(data.client)
 		}
 	}
 }
-func (m *LobbyManager[T, U]) newGame() T{
+func (m *LobbyManager[T, U]) newGame() T {
 	var game U
-	res:=(T(&game)).init(m)
+	res := (T(&game)).init(m)
 	return (res).(T)
 }
 
