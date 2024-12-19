@@ -1,10 +1,10 @@
 // I used the WebSocket example files for this, but I think this code is now mine? not sure.
 // To feel a bit better I'm leaving this in the file:
-//#region Copyright of examples used for this tiny inconsequential project
+// #region Copyright of examples used for this tiny inconsequential project
 // Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-//#endregion
+// #endregion
 package main
 
 import (
@@ -12,6 +12,8 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os/exec"
+	"strings"
 )
 
 var addr = flag.String("addr", ":8080", "http service address")
@@ -20,6 +22,14 @@ var addr = flag.String("addr", ":8080", "http service address")
 
 
 func main() {
+	cmd:=exec.Command("python /back/resources/Wordle/checkWord.py","mama")
+	var out strings.Builder
+	cmd.Stdout = &out
+	errr := cmd.Run()
+	if errr != nil {
+		log.Fatal(errr)
+	}
+	log.Output(0, out.String())
 	flag.Parse() //I don't think this does anything?
 	//region serve home
 	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
